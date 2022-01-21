@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# Created:       Fr 2022-01-21 13:11:40 CET
+# Last Modified: Fr 2022-01-21 13:12:08 CET
+#
+# diskspace-monitor-update:
+#    Updates the fileusage logfiles
+
+# Help text
+usage() {
+cat << EOF
+
+Usage: diskspace-monitor-update [options]
+
+OPTIONS:
+   -e <path>   Exclude this drive from monitoring
+   -m <num>    Maximum number of lines in logfiles
+   -h          Show this help message
+EOF
+}
+
+# Default log path
+LOGDIR=/var/log/diskspace-monitor
+
+# Default maximum of lines in logfile
+MAXLINES=365
+
+# Declare array of exclude drives
+declare -a EXCLUDES
+
+while getopts "m:e:h" opt
+do
+    case $opt in
+        m) MAXLINES=$OPTARG
+            ;;
+        e) EXCLUDES+=("$OPTARG")
+            ;;
+        h|\?)
+            usage
+            exit 0
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+# Reset MAXLINES to zero if not defined as integer
+[[ $maxlines =~ ^[0-9]+$ ]] || maxlines=0
+
+#
+DRIVES=$(df --portability --type=btrfs --type=ext4 --type=ext3 --type=ext2 --type=vfat | sort -n -k4 | grep ^/ | awk '{print $1}')
+
+#
+DATE=$(date +'%FT%T%z')
+
+#
+SPONGE=$(command -v sponge)
+
+# Create logdir
+mkdir -p "$LOGDIR"
+
+# Loop over physical drives
+for path in $DRIVES
+do
+
+    # Skip this drive if contained in EXCLUDES array
+    for exclpath in "${EXCLUDES[@]}"
+    do
+        if [[ $exclpath -ef $path ]]
+        then
+            continue 2
+        fi
+    done
+
+    # Assemble name of logfile
+    logfile=${path#/}
+    logfile=$LOGDIR/$(echo "$logfile" | sed -e 's/\//-/g').log
+
+    # Fetch diskspace data
+    stat=$(df -P | grep -E "$path" | awk '{ printf "%15i %15i %15.3f", $3, $2, $3/$2*100. }')
+
+    # Write data to logfile
+    echo "$DATE: $stat" >> "$logfile"
+
+    # Crop deprecated data
+    if [ "$MAXLINES" -gt 0 ] && [ -x "$SPONGE" ]
+    then
+        tail -n $MAXLINES "$logfile" | "$SPONGE" "$logfile"
+    fi
+
+done

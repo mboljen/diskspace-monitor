@@ -1,0 +1,8 @@
+#!/bin/sh
+# /etc/cron.daily/diskspace-monitor-cronjob: Invoke daily diskspace usage update
+
+# Locate util
+CMD=$(command -v diskspace-monitor-update)
+
+# Launch tool if executable
+[ -x "$CMD" ] && "$CMD"

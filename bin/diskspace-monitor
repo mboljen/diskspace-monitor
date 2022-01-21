@@ -1,0 +1,339 @@
+#!/usr/bin/env perl
+#
+# Created:       Do 2021-11-04 14:45:12 CET
+# Last Modified: Fr 2022-01-21 13:37:09 CET
+#
+# diskspace-monitor:
+#    Invokes gnuplot and plots data of logfiles
+
+use strict;
+use warnings;
+
+use Config::Std;
+use FindBin qw($Script);
+use File::Basename;
+use File::Spec::Functions;
+use File::Slurp;
+use Getopt::Long;
+use Pod::Usage;
+use Time::Piece;
+use Time::Seconds;
+
+#
+my $man  = 0;
+my $help = 0;
+my $free = 0;
+my $days = 365;
+my $abs  = '';
+
+#
+GetOptions(
+    'f|free!'  => \$free,
+    'a|abs=s'  => \$abs,
+    'd|days=i' => \$days,
+    'man'      => \$man,
+    'help|?'   => \$help,
+) or pod2usage();
+
+pod2usage(1) if $help;
+pod2usage(-exitval => 0, -verbose >= 2) if $man;
+
+my $ylabel;
+my $ymax;
+my $absunit;
+
+if ($abs ne '')
+{
+    if ($abs =~ m/^b$/i)
+    {
+        #
+        $abs = 1;
+        $absunit = 'Bytes';
+    }
+    elsif ($abs =~ m/^kb$/i)
+    {
+        $abs = 1024;
+        $absunit = 'kB';
+    }
+    elsif ($abs =~ m/^mb$/i)
+    {
+        $abs = 1024**2;
+        $absunit = 'MB';
+    }
+    elsif ($abs =~ m/^gb$/i)
+    {
+        $abs = 1024**3;
+        $absunit = 'GB';
+    }
+    elsif ($abs =~ m/^tb$/i)
+    {
+        $abs = 1024**4;
+        $absunit = 'TB';
+    }
+    else
+    {
+        die "Unknown unit specified: [$abs]";
+    }
+    #
+}
+
+if (not $free)
+{
+    #
+    if ($abs)
+    {
+        #
+        $ylabel = "Disk Space Used / $absunit";
+        $ymax = '';
+    }
+    else
+    {
+        #
+        $ylabel = 'Percentage of Disk Space Used';
+        $ymax = 100;
+    }
+}
+else
+{
+    #
+    if ($abs)
+    {
+        #
+        $ylabel = "Disk Space Free / $absunit";
+        $ymax = '';
+    }
+    else
+    {
+        #
+        $ylabel = 'Percentage of Disk Space Free';
+        $ymax = 100;
+    }
+}
+
+# Open file handle and pipe output to gnuplot
+open(my $gp, "| gnuplot") or die "$!";
+
+# Gnuplot settings
+print $gp <<GNUPLOT_HEAD;
+
+set terminal wxt enhanced persist size 800,600
+set title "$Script"
+set ylabel "$ylabel"
+set grid
+set yrange [0:$ymax]
+set xdata time
+set timefmt "%s"
+set format x "%b %d"
+set key outside right top vertical
+
+GNUPLOT_HEAD
+
+#
+my $now = localtime;
+
+# Folder holding log files
+my $dirname = '/var/log/diskspace-monitor';
+
+# Declare data container
+my @dataset;
+
+# Loop over log files in log files directory
+opendir(DIR,$dirname) or die "Can't open $dirname: $!";
+while (defined (my $file = readdir(DIR)))
+{
+    # Skip files with non-matching file extension
+    next unless $file =~ m/\.log$/i;
+
+    # Concatenate directory name and file name
+    my $absfile = File::Spec->catfile($dirname,$file);
+
+    # Read file contents
+    my @lines = read_file($absfile);
+
+    # Declare data container for current logfile
+    my @data;
+
+    # Loop over all data lines
+    foreach my $line (@lines)
+    {
+        # Grep time stamp, bytes used and bytes available
+        my ($timestamp, $used, $avail) = split /\s+/, $line;
+
+        # Remove trailing colon from timestamp
+        $timestamp =~ s/\:$//;
+
+        # Convert timestamp to Time::Piece object
+        my $date = Time::Piece->strptime($timestamp, "%Y-%m-%dT%H:%M:%S%z");
+
+        # Skip line if date is older than DAYS
+        next if $now - $date > $days * ONE_DAY;
+
+        #
+        my $fun;
+
+        if (not $free)
+        {
+            #
+            if ($abs)
+            {
+                #
+                $fun = $used / $abs;
+            }
+            else
+            {
+                #
+                $fun = $used / $avail * 100;
+            }
+        }
+        else
+        {
+            #
+            if ($abs)
+            {
+                #
+                $fun = ( $avail - $used ) / $abs;
+            }
+            else
+            {
+                #
+                $fun = ( $avail - $used ) / $avail * 100;
+            }
+        }
+
+        # Add data point to curve
+        push @data, { epoch => $date->epoch, used => $fun };
+    }
+
+    # Determine basename of logfile
+    my ($basename) = fileparse($absfile,'.log');
+
+    # Add curve to global data container
+    push @dataset, { title => $basename, data => \@data };
+}
+closedir(DIR);
+
+# Sort curves by title of logfile
+@dataset = sort { $a->{title} cmp $b->{title} } @dataset;
+
+# Remove identical prefixes from title
+my $redo = 1;
+CHECKPREFIX: while ($redo)
+{
+    # Declare container for first character
+    my $char;
+
+    # Loop over logfiles
+    for my $i (0 .. $#dataset)
+    {
+        # Grep first character of logfile title
+        my $testchar = substr($dataset[$i]{title},0,1);
+        if (defined $char)
+        {
+            # If first character of current logfile does not match
+            if ($testchar ne $char)
+            {
+                $redo = 0;
+                last CHECKPREFIX;
+            }
+        }
+        else
+        {
+            # Set unless defined
+            $char = $testchar;
+        }
+    }
+
+    # Check flag to remove first character
+    map { $dataset[$_]{title} =~ s/^$char// } (0 .. $#dataset) if $redo;
+}
+
+# Assemble plot command
+print $gp "plot ";
+
+# Loop over available datasets
+for my $i (0 .. $#dataset)
+{
+    printf $gp "'-' u 1:2 t '%s' w lines", $dataset[$i]{title};
+    print $gp ',' if $i < $#dataset;
+}
+print $gp "\n";
+
+# Add inline data
+for my $i (0 .. $#dataset)
+{
+    # Get array reference
+    my $arrayref = $dataset[$i]{data};
+
+    # Add datapoints line by line
+    for my $x (0 .. $#{$arrayref})
+    {
+        printf $gp "%15d %15.3f\n", $arrayref->[$x]{epoch},
+                                    $arrayref->[$x]{used};
+    }
+    print $gp "e\n";
+}
+
+__END__
+
+
+=head1 NAME
+
+diskspace-monitor - 
+
+=head1 SYNOPSIS
+
+B<diskspace-monitor> [I<options>]
+
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f>, B<--free>
+
+=item B<-a>, B<--abs>
+
+=item B<-d>, B<--days>
+
+=item B<--man>
+
+Prints the manual page and exits.
+
+=item B<--help>
+
+Prints a brief help message and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+This script parses diskspace usage logfiles and creates plots using B<gnuplot>.
+
+=head1 HISTORY
+
+  2022-01-21  Original version
+
+
+=head1 MIT LICENSE
+
+Copyright 2022 by Matthias Boljen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+=cut
