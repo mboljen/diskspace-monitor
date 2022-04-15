@@ -2,8 +2,8 @@
 Encoding=UTF-8
 Value=1.0
 Type=Application
-Name=Diskspace-Monitor
-GenericName=Diskspace-Monitor
+Name=Diskspace Monitor
+GenericName=Diskspace Monitor
 Comment=Log diskspace usage
 Icon=drive-harddisk-system
 Exec=diskspace-monitor

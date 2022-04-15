@@ -54,10 +54,12 @@ install:
 	for file in $(INSTALL_FILES); do cp $$file $(PREFIX)/$$file; done
 	mkdir -p $(DOC_DIR)
 	cp -r $(DOC_FILES) $(DOC_DIR)/
+	ln -s $(PREFIX)/etc/cron.daily/diskspace-monitor-cronjob /etc/cron.daily
 
 uninstall:
 	for file in $(INSTALL_FILES); do rm -f $(PREFIX)/$$file; done
 	rm -rf $(DOC_DIR)
+	rm -f /etc/cron.daily/diskspace-monitor-cronjob
 
 
 .PHONY: build sign man clean test tag release install uninstall all

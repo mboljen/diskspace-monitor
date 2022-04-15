@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Created:       Do 2021-11-04 14:45:12 CET
-# Last Modified: Fr 2022-01-21 13:37:09 CET
+# Last Modified: Mi 2022-01-26 13:39:56 CET
 #
 # diskspace-monitor:
 #    Invokes gnuplot and plots data of logfiles
@@ -9,7 +9,6 @@
 use strict;
 use warnings;
 
-use Config::Std;
 use FindBin qw($Script);
 use File::Basename;
 use File::Spec::Functions;
@@ -46,35 +45,39 @@ if ($abs ne '')
 {
     if ($abs =~ m/^b$/i)
     {
-        #
+        # Unit: bytes
         $abs = 1;
         $absunit = 'Bytes';
     }
     elsif ($abs =~ m/^kb$/i)
     {
+        # Unit: Kilobytes
         $abs = 1024;
         $absunit = 'kB';
     }
     elsif ($abs =~ m/^mb$/i)
     {
+        # Unit: Megabytes
         $abs = 1024**2;
         $absunit = 'MB';
     }
     elsif ($abs =~ m/^gb$/i)
     {
+        # Unit: Gigabytes
         $abs = 1024**3;
         $absunit = 'GB';
     }
     elsif ($abs =~ m/^tb$/i)
     {
+        # Unit: Terabytes
         $abs = 1024**4;
         $absunit = 'TB';
     }
     else
     {
+        #
         die "Unknown unit specified: [$abs]";
     }
-    #
 }
 
 if (not $free)

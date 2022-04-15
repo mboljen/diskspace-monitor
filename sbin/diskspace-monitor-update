@@ -13,7 +13,7 @@ cat << EOF
 Usage: diskspace-monitor-update [options]
 
 OPTIONS:
-   -e <path>   Exclude this drive from monitoring
+   -e <re>     Exclude drives matching regular expression from monitoring
    -m <num>    Maximum number of lines in logfiles
    -h          Show this help message
 EOF
@@ -42,42 +42,43 @@ do
     esac
 done
 
+# Reset option index variable
 shift $((OPTIND-1))
 
 # Reset MAXLINES to zero if not defined as integer
 [[ $maxlines =~ ^[0-9]+$ ]] || maxlines=0
 
-#
+# Grep free disk space on mounted devices
 DRIVES=$(df --portability --type=btrfs --type=ext4 --type=ext3 --type=ext2 --type=vfat | sort -n -k4 | grep ^/ | awk '{print $1}')
 
-#
+# Grep current date
 DATE=$(date +'%FT%T%z')
 
-#
+# Command to redirect STDIN to file
 SPONGE=$(command -v sponge)
 
 # Create logdir
 mkdir -p "$LOGDIR"
 
 # Loop over physical drives
-for path in $DRIVES
+for drive in $DRIVES
 do
 
     # Skip this drive if contained in EXCLUDES array
-    for exclpath in "${EXCLUDES[@]}"
+    for re in "${EXCLUDES[@]}"
     do
-        if [[ $exclpath -ef $path ]]
+        if [[ $drive =~ $re ]]
         then
             continue 2
         fi
     done
 
     # Assemble name of logfile
-    logfile=${path#/}
+    logfile=${drive#/}
     logfile=$LOGDIR/$(echo "$logfile" | sed -e 's/\//-/g').log
 
     # Fetch diskspace data
-    stat=$(df -P | grep -E "$path" | awk '{ printf "%15i %15i %15.3f", $3, $2, $3/$2*100. }')
+    stat=$(df -P | grep -E "$drive" | awk '{ printf "%15i %15i %15.3f", $3, $2, $3/$2*100. }')
 
     # Write data to logfile
     echo "$DATE: $stat" >> "$logfile"
