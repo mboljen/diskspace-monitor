@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Created:       Do 2021-11-04 14:45:12 CET
-# Last Modified: Mi 2022-01-26 13:39:56 CET
+# Last Modified: Sa 2022-04-16 13:19:11 CEST
 #
 # diskspace-monitor:
 #    Invokes gnuplot and plots data of logfiles
@@ -22,6 +22,7 @@ use Time::Seconds;
 my $man  = 0;
 my $help = 0;
 my $free = 0;
+my $npts = 0;
 my $days = 365;
 my $abs  = '';
 
@@ -29,6 +30,7 @@ my $abs  = '';
 GetOptions(
     'f|free!'  => \$free,
     'a|abs=s'  => \$abs,
+    'n|npts=i' => \$npts,
     'd|days=i' => \$days,
     'man'      => \$man,
     'help|?'   => \$help,
@@ -45,33 +47,45 @@ if ($abs ne '')
 {
     if ($abs =~ m/^b$/i)
     {
-        # Unit: bytes
+        # Unit: Byte
         $abs = 1;
         $absunit = 'Bytes';
     }
     elsif ($abs =~ m/^kb$/i)
     {
-        # Unit: Kilobytes
+        # Unit: Kilobyte
         $abs = 1024;
         $absunit = 'kB';
     }
     elsif ($abs =~ m/^mb$/i)
     {
-        # Unit: Megabytes
+        # Unit: Megabyte
         $abs = 1024**2;
         $absunit = 'MB';
     }
     elsif ($abs =~ m/^gb$/i)
     {
-        # Unit: Gigabytes
+        # Unit: Gigabyte
         $abs = 1024**3;
         $absunit = 'GB';
     }
     elsif ($abs =~ m/^tb$/i)
     {
-        # Unit: Terabytes
+        # Unit: Terabyte
         $abs = 1024**4;
         $absunit = 'TB';
+    }
+    elsif ($abs =~ m/^pb$/i)
+    {
+        # Unit: Petabyte
+        $abs = 1024**5;
+        $absunit = 'PB';
+    }
+    elsif ($abs =~ m/^eb$/i)
+    {
+        # Unit: Exabyte
+        $abs = 1024**6;
+        $absunit = 'EB';
     }
     else
     {
@@ -152,6 +166,9 @@ while (defined (my $file = readdir(DIR)))
 
     # Read file contents
     my @lines = read_file($absfile);
+
+    # Remove data
+    if ($npts > 0) { shift @lines while scalar @lines > $npts; }
 
     # Declare data container for current logfile
     my @data;
@@ -256,7 +273,7 @@ print $gp "plot ";
 # Loop over available datasets
 for my $i (0 .. $#dataset)
 {
-    printf $gp "'-' u 1:2 t '%s' w lines", $dataset[$i]{title};
+    printf $gp "'-' u 1:2 t '%s' w linespoints pt 7 lw 2 ps 1.2", $dataset[$i]{title};
     print $gp ',' if $i < $#dataset;
 }
 print $gp "\n";
@@ -294,9 +311,15 @@ B<diskspace-monitor> [I<options>]
 
 =item B<-f>, B<--free>
 
-=item B<-a>, B<--abs>
+Plots free diskspace instead of used diskspace.
 
-=item B<-d>, B<--days>
+=item B<-a>, B<--abs>=I<unit>
+
+Plots absolute diskspace usage in <unit> instead of relative diskspace usage.  Valid specifiers are C<B> for Bytes, C<kB> for kBytes, C<MB> for MBytes, C<GB> for GBytes, C<TB> for TBytes, C<PB> for PBytes, and C<EB> for EBytes.
+
+=item B<-d>, B<--days>=I<value>
+
+Skips data older than I<value> days.
 
 =item B<--man>
 
