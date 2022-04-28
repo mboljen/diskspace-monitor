@@ -56,6 +56,7 @@ install:
 	mkdir -p $(DOC_DIR)
 	cp -r $(DOC_FILES) $(DOC_DIR)/
 	ln -sf $(PREFIX)/etc/cron.daily/diskspace-monitor-cronjob /etc/cron.daily
+	mkdir -p /var/log/diskspace-monitor
 
 uninstall:
 	for file in $(INSTALL_FILES); do rm -f $(PREFIX)/$$file; done
