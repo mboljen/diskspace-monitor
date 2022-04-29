@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Created:       Do 2021-11-04 14:45:12 CET
-# Last Modified: Sa 2022-04-16 13:19:11 CEST
+# Last Modified: Fr 2022-04-29 14:04:05 CEST
 #
 # diskspace-monitor:
 #    Invokes gnuplot and plots data of logfiles
@@ -232,12 +232,15 @@ while (defined (my $file = readdir(DIR)))
 }
 closedir(DIR);
 
+# Stop here if no datasets found
+die "No datasets found yet" unless @dataset;
+
 # Sort curves by title of logfile
 @dataset = sort { $a->{title} cmp $b->{title} } @dataset;
 
 # Remove identical prefixes from title
 my $redo = 1;
-CHECKPREFIX: while ($redo)
+CHECKPREFIX: while ($redo and @dataset)
 {
     # Declare container for first character
     my $char;
