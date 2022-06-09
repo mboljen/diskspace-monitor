@@ -5,7 +5,7 @@ diskspace-monitor - Monitor diskspace usage over time
 
 # SYNOPSIS
 
-**diskspace-monitor** [ **-f** ] [ **-a** _unit_ ] [ **-d** _days_ ] [ **-h** ]
+**diskspace-monitor** [ **-f** ] [ **-a** _unit_ ] [ **-d** _days_ ] [ **-n** _npts_ ] [ **-h** ]
 
 
 # DESCRIPTION
@@ -23,6 +23,9 @@ diskspace-monitor - Monitor diskspace usage over time
 
 **-d** _days_
 : skip data older than _days_.
+
+**-n** _npts_
+: limit plot to latest _npts_ datapoints.
 
 **-h**
 : show this help message.
