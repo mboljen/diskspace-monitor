@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Created:       Do 2021-11-04 14:45:12 CET
-# Last Modified: Fr 2022-04-29 14:04:05 CEST
+# Last Modified: Do 2022-06-09 18:13:38 CEST
 #
 # diskspace-monitor:
 #    Invokes gnuplot and plots data of logfiles
@@ -18,13 +18,8 @@ use Pod::Usage;
 use Time::Piece;
 use Time::Seconds;
 
-#
-my $man  = 0;
-my $help = 0;
-my $free = 0;
-my $npts = 0;
-my $days = 365;
-my $abs  = '';
+# Initialize variables
+my ( $man, $help, $free, $npts, $days, $abs ) = ( 0, 0, 0, 0, 365, '' );
 
 #
 GetOptions(
@@ -39,10 +34,10 @@ GetOptions(
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose >= 2) if $man;
 
-my $ylabel;
-my $ymax;
-my $absunit;
+# Declare internal variables
+my ($ylabel,$ymax,$absunit);
 
+# Scaling factor and unit for absolute values
 if ($abs ne '')
 {
     if ($abs =~ m/^b$/i)
@@ -89,40 +84,35 @@ if ($abs ne '')
     }
     else
     {
-        #
+        # Something went wrong
         die "Unknown unit specified: [$abs]";
     }
 }
 
-if (not $free)
+# Adjust axis label and upper boundary
+if ($free)
 {
-    #
     if ($abs)
     {
-        #
-        $ylabel = "Disk Space Used / $absunit";
-        $ymax = '';
-    }
-    else
-    {
-        #
-        $ylabel = 'Percentage of Disk Space Used';
-        $ymax = 100;
-    }
-}
-else
-{
-    #
-    if ($abs)
-    {
-        #
         $ylabel = "Disk Space Free / $absunit";
         $ymax = '';
     }
     else
     {
-        #
         $ylabel = 'Percentage of Disk Space Free';
+        $ymax = 100;
+    }
+}
+else
+{
+    if ($abs)
+    {
+        $ylabel = "Disk Space Used / $absunit";
+        $ymax = '';
+    }
+    else
+    {
+        $ylabel = 'Percentage of Disk Space Used';
         $ymax = 100;
     }
 }
@@ -145,7 +135,7 @@ set key outside right top vertical
 
 GNUPLOT_HEAD
 
-#
+# Get current timestamp
 my $now = localtime;
 
 # Folder holding log files
@@ -188,35 +178,34 @@ while (defined (my $file = readdir(DIR)))
         # Skip line if date is older than DAYS
         next if $now - $date > $days * ONE_DAY;
 
-        #
+        # Declare function value
         my $fun;
 
-        if (not $free)
+        #
+        if ($free)
         {
-            #
             if ($abs)
             {
-                #
-                $fun = $used / $abs;
-            }
-            else
-            {
-                #
-                $fun = $used / $avail * 100;
-            }
-        }
-        else
-        {
-            #
-            if ($abs)
-            {
-                #
+                # Free Disk Space (absolute)
                 $fun = ( $avail - $used ) / $abs;
             }
             else
             {
-                #
+                # Free Disk Space (percentage)
                 $fun = ( $avail - $used ) / $avail * 100;
+            }
+        }
+        else
+        {
+            if ($abs)
+            {
+                # Used Disk Sapce (absolute)
+                $fun = $used / $abs;
+            }
+            else
+            {
+                # Used Disk Space (percentage)
+                $fun = $used / $avail * 100;
             }
         }
 
@@ -301,7 +290,7 @@ __END__
 
 =head1 NAME
 
-diskspace-monitor - 
+diskspace-monitor - Monitor diskspace usage over time
 
 =head1 SYNOPSIS
 
@@ -322,7 +311,11 @@ Plots absolute diskspace usage in <unit> instead of relative diskspace usage.  V
 
 =item B<-d>, B<--days>=I<value>
 
-Skips data older than I<value> days.
+Skips data points older than I<value> days.
+
+=item B<-n>, B<--npts>=I<value>
+
+Skips data points exceeding I<value> lines.
 
 =item B<--man>
 
